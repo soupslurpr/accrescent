@@ -15,6 +15,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHostState
@@ -30,15 +31,36 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextIndent
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import app.accrescent.client.BuildConfig
 import app.accrescent.client.R
 import app.accrescent.client.data.DownloadProgress
 import app.accrescent.client.data.InstallStatus
 import app.accrescent.client.util.isPrivileged
+import org.commonmark.node.Block
+import org.commonmark.node.BulletList
+import org.commonmark.node.Document
+import org.commonmark.node.Emphasis
+import org.commonmark.node.HardLineBreak
+import org.commonmark.node.Heading
+import org.commonmark.node.ListBlock
+import org.commonmark.node.ListItem
+import org.commonmark.node.Node
+import org.commonmark.node.OrderedList
+import org.commonmark.node.Paragraph
+import org.commonmark.node.SoftLineBreak
+import org.commonmark.node.StrongEmphasis
+import org.commonmark.node.Text
+import org.commonmark.parser.Parser
 
 @Composable
 fun AppDetailsScreen(
@@ -89,6 +111,7 @@ fun AppDetailsScreen(
             onOpenClicked = { viewModel.openApp(viewModel.uiState.appId) },
             onOpenAppInfoClicked = { viewModel.openAppInfo(viewModel.uiState.appId) },
             downloadProgress = downloadProgress,
+            description = TODO(),
         )
         else -> AppNotFoundError()
     }
@@ -130,6 +153,7 @@ fun AppDetails(
     onOpenClicked: () -> Unit,
     onOpenAppInfoClicked: () -> Unit,
     downloadProgress: DownloadProgress?,
+    description: String,
 ) {
     val context = LocalContext.current
     var waitingForSize by remember { mutableStateOf(false) }
@@ -220,6 +244,7 @@ fun AppDetails(
                 }
             }
         }
+        MarkdownToComposable(markdown = description)
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -270,4 +295,207 @@ fun AppNotFoundError() {
             }
         }
     }
+}
+
+
+@Composable
+fun MarkdownToComposable(markdown: String, modifier: Modifier = Modifier) {
+    @Composable
+    fun NodeToComposable(node: Node, style: TextStyle) {
+        when (node) {
+            is Document -> {
+                var child = node.firstChild
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    while (child != null) {
+                        Row {
+                            NodeToComposable(child, style)
+                            child = child.next
+                        }
+                    }
+                }
+            }
+            is Paragraph -> {
+                var child = node.firstChild
+                Column {
+                    while (child != null) {
+                        Row {
+                            while (child !is HardLineBreak && child != null) {
+                                NodeToComposable(child, style)
+                                child = child.next
+                            }
+                        }
+                        if (child != null) {
+                            child = child.next
+                        }
+                    }
+                }
+            }
+            is Emphasis -> {
+                val style = style.copy(fontStyle = FontStyle.Italic)
+                var child = node.firstChild
+                while (child != null) {
+                    NodeToComposable(child, style)
+                    child = child.next
+                }
+            }
+            is StrongEmphasis -> {
+                val style = style.copy(fontWeight = FontWeight.Bold)
+                var child = node.firstChild
+                while (child != null) {
+                    NodeToComposable(child, style)
+                    child = child.next
+                }
+            }
+            is SoftLineBreak -> {
+                Text(text = " ")
+            }
+            is Heading -> {
+                var style = style.copy()
+                if (node.level <= 6) {
+                    when (node.level) {
+                        1 -> {
+                            style = style.copy(
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                        2 -> {
+                            style = style.copy(
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                        3 -> {
+                            style = style.copy(
+                                fontSize = 18.72.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                        4 -> {
+                            style = style.copy(
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                        5 -> {
+                            style = style.copy(
+                                fontSize = 13.28.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                        6 -> {
+                            style = style.copy(
+                                fontSize = 10.72.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+                    var child = node.firstChild
+                    while (child != null && node.level <= 6) {
+                        NodeToComposable(child, style)
+                        child = child.next
+                    }
+                }
+            }
+            is BulletList -> {
+                val bulletStyle = style.copy(
+                    fontWeight = FontWeight.Black,
+                    textIndent = TextIndent(1.em),
+                )
+                var child = node.firstChild
+                Column {
+                    while (child != null) {
+                        Row {
+                            Text(
+                                text = "  ⦁ ",
+                                style = bulletStyle,
+                            )
+                            while (child !is ListItem && child != null) {
+                                NodeToComposable(child, style)
+                                child = child.next
+                            }
+                            if (child != null) {
+                                NodeToComposable(child, style)
+                                child = child.next
+                            }
+                        }
+                        if (child != null && !node.isTight) {
+                            Row {
+                                Text(text = "")
+                            }
+                        }
+                    }
+                }
+            }
+            is OrderedList -> {
+                val startNumberAndDelimiterStyle = style.copy(
+                    textIndent = TextIndent(1.em),
+                )
+                var child = node.firstChild
+                var listItemStartNumber = node.startNumber
+                Column {
+                    while (child != null) {
+                        Row {
+                            Text(
+                                text = "  ${listItemStartNumber}${node.delimiter} ",
+                                style = startNumberAndDelimiterStyle
+                            )
+                            while (child !is ListItem && child != null) {
+                                NodeToComposable(child, style)
+                                child = child.next
+                            }
+                            if (child != null) {
+                                NodeToComposable(child, style)
+                                child = child.next
+                            }
+                        }
+                        if (child != null && !node.isTight) {
+                            Row {
+                                Text(text = "")
+                            }
+                        }
+                        listItemStartNumber += 1
+                    }
+                }
+            }
+            is ListItem -> {
+                var child = node.firstChild
+                while (child != null) {
+                    NodeToComposable(child, style)
+                    child = child.next
+                }
+            }
+            is Text -> {
+                Text(text = node.literal.orEmpty(), style = style)
+            }
+        }
+    }
+    val parser = Parser.builder()
+        .enabledBlockTypes(mutableSetOf(Heading::class.java, ListBlock::class.java) as Set<Class<out Block>>?)
+        .build()
+
+
+    NodeToComposable(parser.parse(markdown), LocalTextStyle.current)
+}
+
+
+
+@Preview
+@Composable
+fun AppDetailsPreview() {
+    AppDetails(
+        id = "app.example.com",
+        name = "Example",
+        versionName = "0.12.4",
+        versionCode = 26,
+        installStatus = InstallStatus.INSTALLABLE,
+        onInstallClicked = { /*TODO*/ },
+        onUninstallClicked = { /*TODO*/ },
+        onOpenClicked = { /*TODO*/ },
+        onOpenAppInfoClicked = { /*TODO*/ },
+        downloadProgress = null,
+        description = "Testing one **two** *three*"
+    )
 }
